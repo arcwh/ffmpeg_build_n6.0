@@ -418,6 +418,11 @@ typedef struct RTSPState {
     int buffer_size;
     int pkt_size;
     char *localaddr;
+
+    /**
+     * Android network handle for TCP/UDP sockets.
+     */
+    int64_t net_handle;
 } RTSPState;
 
 #define RTSP_FLAG_FILTER_SRC  0x1    /**< Filter incoming UDP packets -

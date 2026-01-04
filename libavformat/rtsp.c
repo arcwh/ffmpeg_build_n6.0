@@ -78,7 +78,8 @@
 #define COMMON_OPTS() \
     { "reorder_queue_size", "set number of packets to buffer for handling of reordered packets", OFFSET(reordering_queue_size), AV_OPT_TYPE_INT, { .i64 = -1 }, -1, INT_MAX, DEC }, \
     { "buffer_size",        "Underlying protocol send/receive buffer size",                  OFFSET(buffer_size),           AV_OPT_TYPE_INT, { .i64 = -1 }, -1, INT_MAX, DEC|ENC }, \
-    { "pkt_size",           "Underlying protocol send packet size",                          OFFSET(pkt_size),              AV_OPT_TYPE_INT, { .i64 = 1472 }, -1, INT_MAX, ENC } \
+    { "pkt_size",           "Underlying protocol send packet size",                          OFFSET(pkt_size),              AV_OPT_TYPE_INT, { .i64 = 1472 }, -1, INT_MAX, ENC }, \
+    { "net_handle",         "Android network handle for underlying RTSP/RTP sockets",            OFFSET(net_handle),            AV_OPT_TYPE_INT64, { .i64 = 0 },   0,        INT64_MAX, DEC|ENC }
 
 
 const AVOption ff_rtsp_options[] = {
@@ -129,10 +130,14 @@ static AVDictionary *map_to_opts(RTSPState *rt)
 {
     AVDictionary *opts = NULL;
 
-    av_dict_set_int(&opts, "buffer_size", rt->buffer_size, 0);
-    av_dict_set_int(&opts, "pkt_size",    rt->pkt_size,    0);
+    if (rt->buffer_size > 0)
+        av_dict_set_int(&opts, "buffer_size", rt->buffer_size, 0);
+    if (rt->pkt_size > 0)
+        av_dict_set_int(&opts, "pkt_size",    rt->pkt_size,    0);
     if (rt->localaddr && rt->localaddr[0])
         av_dict_set(&opts, "localaddr", rt->localaddr, 0);
+    if (rt->net_handle > 0)
+        av_dict_set_int(&opts, "net_handle", rt->net_handle, 0);
 
     return opts;
 }
@@ -1806,6 +1811,8 @@ redirect:
         AVDictionary *options = NULL;
 
         av_dict_set_int(&options, "timeout", rt->stimeout, 0);
+        if (rt->net_handle > 0)
+            av_dict_set_int(&options, "net_handle", rt->net_handle, 0);
 
         ff_url_join(httpname, sizeof(httpname), https_tunnel ? "https" : "http", auth, host, port, "%s", path);
         snprintf(sessioncookie, sizeof(sessioncookie), "%08x%08x",
@@ -1880,6 +1887,9 @@ redirect:
          */
         ff_http_init_auth_state(rt->rtsp_hd_out, rt->rtsp_hd);
 
+        if (rt->net_handle > 0)
+            av_dict_set_int(&options, "net_handle", rt->net_handle, 0);
+
         /* complete the connection */
         if (ffurl_connect(rt->rtsp_hd_out, &options)) {
             av_dict_free(&options);
@@ -1889,12 +1899,19 @@ redirect:
         av_dict_free(&options);
     } else {
         int ret;
+        AVDictionary *opts = map_to_opts(rt); 
+
         /* open the tcp connection */
         ff_url_join(tcpname, sizeof(tcpname), lower_rtsp_proto, NULL,
                     host, port,
                     "?timeout=%"PRId64, rt->stimeout);
-        if ((ret = ffurl_open_whitelist(&rt->rtsp_hd, tcpname, AVIO_FLAG_READ_WRITE,
-                       &s->interrupt_callback, NULL, s->protocol_whitelist, s->protocol_blacklist, NULL)) < 0) {
+
+        ret = ffurl_open_whitelist(&rt->rtsp_hd, tcpname, AVIO_FLAG_READ_WRITE,
+                                   &s->interrupt_callback, &opts,
+                                   s->protocol_whitelist, s->protocol_blacklist, NULL);
+        av_dict_free(&opts);
+
+        if (ret < 0) {
             err = ret;
             goto fail;
         }

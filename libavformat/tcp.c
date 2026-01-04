@@ -32,6 +32,11 @@
 #include <poll.h>
 #endif
 
+#if defined(__ANDROID__) && __ANDROID_API__ >= 23
+#include <android/multinetwork.h>   // android_setsocknetwork, net_handle_t
+#include <android/log.h>
+#endif
+
 typedef struct TCPContext {
     const AVClass *class;
     int fd;
@@ -45,6 +50,7 @@ typedef struct TCPContext {
 #if !HAVE_WINSOCK2_H
     int tcp_mss;
 #endif /* !HAVE_WINSOCK2_H */
+    int64_t net_handle; /* Add Android network handle */
 } TCPContext;
 
 #define OFFSET(x) offsetof(TCPContext, x)
@@ -60,6 +66,7 @@ static const AVOption options[] = {
 #if !HAVE_WINSOCK2_H
     { "tcp_mss",     "Maximum segment size for outgoing TCP packets",          OFFSET(tcp_mss),     AV_OPT_TYPE_INT, { .i64 = -1 },         -1, INT_MAX, .flags = D|E },
 #endif /* !HAVE_WINSOCK2_H */
+    { "net_handle", "Android Network handle for this TCP socket",              OFFSET(net_handle),  AV_OPT_TYPE_INT64, { .i64 = 0 },         0, INT64_MAX, .flags = D|E },
     { NULL }
 };
 
@@ -73,6 +80,37 @@ static const AVClass tcp_class = {
 static void customize_fd(void *ctx, int fd)
 {
     TCPContext *s = ctx;
+
+#if defined(__ANDROID__) && __ANDROID_API__ >= 23
+    if (s->net_handle > 0) {
+        int ret_bind = android_setsocknetwork((net_handle_t)s->net_handle, fd);
+        if (ret_bind != 0) {
+            ff_log_net_error(ctx, AV_LOG_WARNING, "android_setsocknetwork");
+            
+            __android_log_print(
+                ANDROID_LOG_ERROR,
+                "SmartWear(TCP)",
+                "set tcp socket network handle(%lld) failed",
+                s->net_handle
+            );
+        } else {
+            __android_log_print(
+                ANDROID_LOG_INFO,
+                "SmartWear(TCP)",
+                "set tcp socket network handle(%lld) success",
+                s->net_handle
+            );
+        }
+    } else {
+        __android_log_print(
+            ANDROID_LOG_WARN,
+            "SmartWear(TCP)",
+            "set tcp socket network no called, handle = %lld",
+            s->net_handle
+        );
+    }
+#endif
+
     /* Set the socket's send or receive buffer sizes, if specified.
        If unspecified or setting fails, system default is used. */
     if (s->recv_buffer_size > 0) {

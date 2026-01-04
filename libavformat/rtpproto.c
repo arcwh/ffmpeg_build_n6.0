@@ -62,6 +62,7 @@ typedef struct RTPContext {
     char *fec_options_str;
     int64_t rw_timeout;
     char *localaddr;
+    int64_t net_handle; /* The Android network handle */
 } RTPContext;
 
 #define OFFSET(x) offsetof(RTPContext, x)
@@ -82,6 +83,7 @@ static const AVOption options[] = {
     { "block",              "Block list",                                                       OFFSET(block),           AV_OPT_TYPE_STRING, { .str = NULL },               .flags = D|E },
     { "fec",                "FEC",                                                              OFFSET(fec_options_str), AV_OPT_TYPE_STRING, { .str = NULL },               .flags = E },
     { "localaddr",          "Local address",                                                    OFFSET(localaddr),       AV_OPT_TYPE_STRING, { .str = NULL },               .flags = D|E },
+    { "net_handle",         "Android network handle for underlying UDP sockets",                OFFSET(net_handle),      AV_OPT_TYPE_INT64,  { .i64 = 0 },      0, INT64_MAX, .flags = D|E },
     { NULL }
 };
 
@@ -324,37 +326,72 @@ static int rtp_open(URLContext *h, const char *uri, int flags)
     }
 
     for (i = 0; i < max_retry_count; i++) {
+        // Open RTP UDP socket
         build_udp_url(s, buf, sizeof(buf),
                       hostname, s->localaddr, rtp_port, s->local_rtpport,
                       sources, block);
+
+        AVDictionary *udp_opts = NULL;
+        if (s->net_handle > 0) {
+            av_dict_set_int(&udp_opts, "net_handle", s->net_handle, 0);
+        }
+
         if (ffurl_open_whitelist(&s->rtp_hd, buf, flags, &h->interrupt_callback,
-                                 NULL, h->protocol_whitelist, h->protocol_blacklist, h) < 0)
+                                 &udp_opts, h->protocol_whitelist, h->protocol_blacklist, h) < 0) {
+            av_dict_free(&udp_opts);
             goto fail;
+        }
+        av_dict_free(&udp_opts);
+
         s->local_rtpport = ff_udp_get_local_port(s->rtp_hd);
         if(s->local_rtpport == 65535) {
             s->local_rtpport = -1;
             continue;
         }
         rtcpflags = flags | AVIO_FLAG_WRITE;
+
+        // Open RTCP UDP socket
         if (s->local_rtcpport < 0) {
             s->local_rtcpport = s->local_rtpport + 1;
             build_udp_url(s, buf, sizeof(buf),
                           hostname, s->localaddr, s->rtcp_port, s->local_rtcpport,
                           sources, block);
+
+            udp_opts = NULL;
+            if (s->net_handle > 0) {
+                av_dict_set_int(&udp_opts, "net_handle", s->net_handle, 0);
+            }
+
             if (ffurl_open_whitelist(&s->rtcp_hd, buf, rtcpflags,
-                                     &h->interrupt_callback, NULL,
+                                     &h->interrupt_callback, &udp_opts,
                                      h->protocol_whitelist, h->protocol_blacklist, h) < 0) {
-                s->local_rtpport = s->local_rtcpport = -1;
+                av_dict_free(&udp_opts);
+                s->local_rtpport  = -1;
+                s->local_rtcpport = -1;
                 continue;
             }
+
+            av_dict_free(&udp_opts);
             break;
         }
+
         build_udp_url(s, buf, sizeof(buf),
                       hostname, s->localaddr, s->rtcp_port, s->local_rtcpport,
                       sources, block);
+        
+        udp_opts = NULL;
+        if (s->net_handle > 0) {
+            av_dict_set_int(&udp_opts, "net_handle", s->net_handle, 0);
+        }
+
         if (ffurl_open_whitelist(&s->rtcp_hd, buf, rtcpflags, &h->interrupt_callback,
-                                 NULL, h->protocol_whitelist, h->protocol_blacklist, h) < 0)
-            goto fail;
+                                 &udp_opts, h->protocol_whitelist, h->protocol_blacklist, h) < 0) {
+            av_dict_free(&udp_opts);
+            goto fail;          
+        }
+            
+        av_dict_free(&udp_opts);
+
         break;
     }
 

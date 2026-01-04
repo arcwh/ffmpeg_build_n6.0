@@ -80,6 +80,11 @@
 #define UDP_MAX_PKT_SIZE 65536
 #define UDP_HEADER_SIZE 8
 
+#if defined(__ANDROID__) && __ANDROID_API__ >= 23
+#include <android/multinetwork.h>   // android_setsocknetwork, net_handle_t
+#include <android/log.h>
+#endif
+
 typedef struct UDPContext {
     const AVClass *class;
     int udp_fd;
@@ -117,6 +122,8 @@ typedef struct UDPContext {
     char *sources;
     char *block;
     IPSourceFilters filters;
+
+    int64_t net_handle; /* Android Network handle */
 } UDPContext;
 
 #define OFFSET(x) offsetof(UDPContext, x)
@@ -141,6 +148,7 @@ static const AVOption options[] = {
     { "timeout",        "set raise error timeout, in microseconds (only in read mode)",OFFSET(timeout),         AV_OPT_TYPE_INT,  {.i64 = 0}, 0, INT_MAX, D },
     { "sources",        "Source list",                                     OFFSET(sources),        AV_OPT_TYPE_STRING, { .str = NULL },               .flags = D|E },
     { "block",          "Block list",                                      OFFSET(block),          AV_OPT_TYPE_STRING, { .str = NULL },               .flags = D|E },
+    { "net_handle",     "Android network handle for this UDP socket",      OFFSET(net_handle),     AV_OPT_TYPE_INT64,  { .i64 = 0 },      0, INT64_MAX, .flags = D|E },
     { NULL }
 };
 
@@ -786,6 +794,37 @@ static int udp_open(URLContext *h, const char *uri, int flags)
         ret = AVERROR(EIO);
         goto fail;
     }
+
+
+#if defined(__ANDROID__) && __ANDROID_API__ >= 23
+    if (s->net_handle > 0) {
+        int ret_bind = android_setsocknetwork((net_handle_t)s->net_handle, udp_fd);
+        if (ret_bind != 0) {
+            ff_log_net_error(h, AV_LOG_WARNING, "android_setsocknetwork");
+            
+            __android_log_print(
+                ANDROID_LOG_ERROR,
+                "SmartWear(UDP)",
+                "set udp socket network handle(%lld) failed",
+                s->net_handle
+            );
+        } else {
+            __android_log_print(
+                ANDROID_LOG_INFO,
+                "SmartWear(UDP)",
+                "set udp socket network handle(%lld) success",
+                s->net_handle
+            );
+        }
+    } else {
+        __android_log_print(
+            ANDROID_LOG_WARN,
+            "SmartWear(UDP)",
+            "set udp socket network no called, handle = %lld",
+            s->net_handle
+        );
+    }
+#endif
 
     s->local_addr_storage=my_addr; //store for future multicast join
 
