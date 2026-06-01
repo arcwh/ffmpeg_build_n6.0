@@ -46,27 +46,32 @@ COMMON_OPTIONS="\
   --enable-decoder=opus \
   --enable-decoder=h264_mediacodec \
   --enable-decoder=hevc_mediacodec \
+  --enable-decoder=mjpeg \
   \
   --enable-encoder=aac \
   --enable-encoder=h264_mediacodec \
   --enable-encoder=hevc_mediacodec \
+  --enable-encoder=mjpeg \
   \
   --enable-parser=h264 \
   --enable-parser=hevc \
   --enable-parser=aac \
   --enable-parser=opus \
+  --enable-parser=mjpeg \
   \
   --enable-muxer=mp4 \
   --enable-muxer=adts \
   --enable-muxer=flv \
   --enable-muxer=rtsp \
   --enable-muxer=sdp \
+  --enable-muxer=image2 \
   \
   --enable-demuxer=mov \
   --enable-demuxer=aac \
   --enable-demuxer=flv \
   --enable-demuxer=rtsp \
   --enable-demuxer=sdp \
+  --enable-demuxer=image2 \
   \
   --enable-protocol=file \
   --enable-protocol=pipe \

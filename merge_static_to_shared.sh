@@ -13,7 +13,7 @@ fi
 NDK=/Users/anathan/Documents/android-ndk-r28c
 TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/darwin-x86_64
 LIB_DIR=$PREFIX/lib/$ABI
-OUTPUT_SO_NAME=librtk-video-toolbox.so
+OUTPUT_SO_NAME=libavkit.so
 OUTPUT_SO=$LIB_DIR/$OUTPUT_SO_NAME
 
 # Select CC and builtins path based on ABI
