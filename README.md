@@ -4,6 +4,8 @@ libavkit Android is a lightweight multimedia toolkit for Android streaming and m
 
 This project provides prebuilt Android shared libraries and build scripts based on FFmpeg for RTSP/RTMP streaming, media muxing/demuxing, and related multimedia workflows.
 
+------
+
 ## Features
 
 - RTSP streaming
@@ -13,6 +15,8 @@ This project provides prebuilt Android shared libraries and build scripts based 
 - Android NDK support
 - Shared library build
 - Android network routing support
+
+------
 
 ## Build Environment
 
@@ -24,11 +28,15 @@ Example build environment:
 
 You may replace the versions above according to your local environment.
 
+------
+
 ## Supported Architectures
 
 - armeabi-v7a
 - arm64-v8a
 - x86_64
+
+------
 
 ## Build Instructions
 
@@ -40,11 +48,15 @@ Open the `build_ffmpeg_android.sh`  file and set the Android NDK path before bui
 export NDK=/Users/yourname/Library/Android/sdk/ndk/28.2.xxxxxxx
 ```
 
+------
+
 ### 2. Grant Execute Permission
 
 ```bash
 chmod +x build_ffmpeg_android.sh
 ```
+
+------
 
 ### 3. Build Libraries
 
@@ -60,11 +72,15 @@ android/
 
 or the corresponding ABI output directories.
 
+------
+
 ## Notes
 
 This project builds FFmpeg as Android shared libraries and includes additional Android-specific networking support for multimedia streaming scenarios.
 
 The generated library name may differ depending on the build configuration.
+
+------
 
 ## License
 

@@ -12,23 +12,25 @@ fi
 
 NDK=/Users/anathan/Documents/android-ndk-r28c
 TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/darwin-x86_64
+OPENH264_ROOT=/Users/anathan/Desktop/ffmpeg_build/openh264-2.6.0/android
+
 LIB_DIR=$PREFIX/lib/$ABI
+OPENH264_LIB=$OPENH264_ROOT/$ABI/lib/libopenh264.a
 OUTPUT_SO_NAME=libavkit.so
 OUTPUT_SO=$LIB_DIR/$OUTPUT_SO_NAME
 
-# Select CC and builtins path based on ABI
+# Use clang++ for the final link because OpenH264 contains C++ code.
+# -static-libstdc++ keeps the C++ runtime inside libavkit.so, so Android does
+# not need an additional libc++_shared.so.
 case $ABI in
   armeabi-v7a)
-    CC=$TOOLCHAIN/bin/armv7a-linux-androideabi${API_LEVEL}-clang
-    BUILTINS_PATH=$(find "$TOOLCHAIN/lib/clang" -name "libclang_rt.builtins-arm-android.a" | head -n 1)
+    CXX=$TOOLCHAIN/bin/armv7a-linux-androideabi${API_LEVEL}-clang++
     ;;
   arm64-v8a)
-    CC=$TOOLCHAIN/bin/aarch64-linux-android${API_LEVEL}-clang
-    BUILTINS_PATH=$(find "$TOOLCHAIN/lib/clang" -name "libclang_rt.builtins-aarch64-android.a" | head -n 1)
+    CXX=$TOOLCHAIN/bin/aarch64-linux-android${API_LEVEL}-clang++
     ;;
   x86_64)
-    CC=$TOOLCHAIN/bin/x86_64-linux-android${API_LEVEL}-clang
-    BUILTINS_PATH=$(find "$TOOLCHAIN/lib/clang" -name "libclang_rt.builtins-x86_64-android.a" | head -n 1)
+    CXX=$TOOLCHAIN/bin/x86_64-linux-android${API_LEVEL}-clang++
     ;;
   *)
     echo "Unsupported ABI: $ABI"
@@ -36,32 +38,45 @@ case $ABI in
     ;;
 esac
 
-# Check that the runtime lib exists
-if [ ! -f "$BUILTINS_PATH" ]; then
-  echo "ERROR: Cannot find libclang_rt.builtins for ABI $ABI"
+if [ ! -f "$OPENH264_LIB" ]; then
+  echo "ERROR: Cannot find OpenH264 static library for ABI $ABI"
+  echo "Expected: $OPENH264_LIB"
   exit 1
 fi
 
-echo "Linking static libs into $OUTPUT_SO"
-echo "Using builtins: $BUILTINS_PATH"
+for LIB in \
+  "$LIB_DIR/libavcodec.a" \
+  "$LIB_DIR/libavformat.a" \
+  "$LIB_DIR/libavutil.a" \
+  "$LIB_DIR/libswresample.a" \
+  "$LIB_DIR/libswscale.a" \
+  "$LIB_DIR/libavfilter.a"; do
+  if [ ! -f "$LIB" ]; then
+    echo "ERROR: Cannot find FFmpeg static library: $LIB"
+    exit 1
+  fi
+done
 
-$CC \
+echo "Linking FFmpeg + OpenH264 static libraries into $OUTPUT_SO"
+echo "Using OpenH264: $OPENH264_LIB"
+
+"$CXX" \
   -fPIC \
   -shared \
-  -nostdlib \
+  -static-libstdc++ \
   -Wl,-Bsymbolic \
   -Wl,--no-undefined \
   -Wl,--whole-archive \
-  $LIB_DIR/libavcodec.a \
-  $LIB_DIR/libavformat.a \
-  $LIB_DIR/libavutil.a \
-  $LIB_DIR/libswresample.a \
-  $LIB_DIR/libswscale.a \
-  $LIB_DIR/libavfilter.a \
+  "$LIB_DIR/libavcodec.a" \
+  "$LIB_DIR/libavformat.a" \
+  "$LIB_DIR/libavutil.a" \
+  "$LIB_DIR/libswresample.a" \
+  "$LIB_DIR/libswscale.a" \
+  "$LIB_DIR/libavfilter.a" \
+  "$OPENH264_LIB" \
   -Wl,--no-whole-archive \
   -Wl,-soname=$OUTPUT_SO_NAME \
   -lc -lm -lz -llog -landroid -ldl \
-  "$BUILTINS_PATH" \
-  -o $OUTPUT_SO
+  -o "$OUTPUT_SO"
 
 echo "Created shared library: $OUTPUT_SO"
