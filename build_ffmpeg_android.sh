@@ -170,6 +170,8 @@ COMMON_OPTIONS="\
   --enable-bsf=aac_adtstoasc \
   --enable-bsf=h264_mp4toannexb \
   --enable-bsf=hevc_mp4toannexb \
+  --enable-bsf=h264_metadata \
+  --enable-bsf=hevc_metadata \
   \
   --enable-avcodec \
   --enable-avformat \
